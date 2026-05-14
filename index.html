@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>소방 장비 이력 관리 QR 생성기</title>
+
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- QR 코드 생성 라이브러리 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -118,6 +122,11 @@
       color: white;
     }
 
+    .btn-refresh {
+      background: #1565c0;
+      color: white;
+    }
+
     .table-card {
       background: white;
       padding: 20px;
@@ -126,10 +135,25 @@
       overflow-x: auto;
     }
 
+    .table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
     .table-title {
-      margin: 0 0 16px;
+      margin: 0;
       font-size: 22px;
       color: #d32f2f;
+    }
+
+    .status {
+      margin: 0;
+      font-size: 14px;
+      color: #555;
     }
 
     table {
@@ -269,7 +293,7 @@
 <body>
   <header>
     <h1>소방 장비 이력 관리용 QR 생성기</h1>
-    <p>장비 정보를 입력하면 QR코드가 생성되고 하단 테이블에 저장됩니다.</p>
+    <p>Supabase DB에 장비 정보를 저장하고 QR코드를 생성합니다.</p>
   </header>
 
   <div class="container">
@@ -309,12 +333,15 @@
       <div class="button-area">
         <button class="btn-main" onclick="addEquipment()">QR 생성 및 등록</button>
         <button class="btn-sub" onclick="clearForm()">입력 초기화</button>
-        <button class="btn-danger" onclick="clearAll()">전체 삭제</button>
+        <button class="btn-refresh" onclick="loadEquipments()">새로고침</button>
       </div>
     </section>
 
     <section class="table-card">
-      <h2 class="table-title">장비 이력 목록</h2>
+      <div class="table-header">
+        <h2 class="table-title">장비 이력 목록</h2>
+        <p id="status" class="status">Supabase 연결 대기 중...</p>
+      </div>
 
       <table>
         <thead>
@@ -326,6 +353,7 @@
             <th>간단한 메모</th>
             <th>내용년수</th>
             <th>입력일자</th>
+            <th>등록일시</th>
             <th>관리</th>
           </tr>
         </thead>
@@ -349,7 +377,20 @@
   </div>
 
   <script>
-    let equipmentList = JSON.parse(localStorage.getItem("equipmentList")) || [];
+    /*
+      [중요]
+      아래 2개 값을 본인의 Supabase 프로젝트 값으로 변경하세요.
+
+      Supabase 위치:
+      Project Settings → API → Project URL
+      Project Settings → API → anon public key
+    */
+    const SUPABASE_URL = "https://ainftwifvclgiookzrwm.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFpbmZ0d2lmdmNsZ2lvb2t6cndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMTQyOTMsImV4cCI6MjA3MDc5MDI5M30.fHWOF1nNcen0iehaRh7Z2EWcOufYeeKGT7FH3UHO5XA";
+
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let equipmentList = [];
 
     const equipmentNoInput = document.getElementById("equipmentNo");
     const equipmentNameInput = document.getElementById("equipmentName");
@@ -357,11 +398,12 @@
     const lifeYearInput = document.getElementById("lifeYear");
     const inputDateInput = document.getElementById("inputDate");
     const equipmentTable = document.getElementById("equipmentTable");
+    const statusElement = document.getElementById("status");
 
     inputDateInput.valueAsDate = new Date();
 
-    function saveData() {
-      localStorage.setItem("equipmentList", JSON.stringify(equipmentList));
+    function setStatus(message) {
+      statusElement.textContent = message;
     }
 
     function escapeHtml(text) {
@@ -388,16 +430,25 @@
         .trim();
     }
 
-    function makeQrText(item) {
-      const equipmentNo = cleanQrText(item.equipmentNo);
-      const equipmentName = cleanQrText(item.equipmentName);
-      const lifeYear = cleanQrText(item.lifeYear);
-      const inputDate = cleanQrText(item.inputDate);
+    function formatDateTime(value) {
+      if (!value) return "-";
 
-      // QR코드 용량 초과 방지를 위해 메모는 30자까지만 QR 안에 저장
+      const date = new Date(value);
+
+      if (isNaN(date.getTime())) {
+        return "-";
+      }
+
+      return date.toLocaleString("ko-KR");
+    }
+
+    function makeQrText(item) {
+      const equipmentNo = cleanQrText(item.equipment_no);
+      const equipmentName = cleanQrText(item.equipment_name);
+      const lifeYear = cleanQrText(item.life_year);
+      const inputDate = cleanQrText(item.input_date);
       const memo = cleanQrText(shortenText(item.memo, 30));
 
-      // 짧은 QR 저장 형식
       return [
         "EQ",
         equipmentNo,
@@ -418,9 +469,6 @@
           height: size,
           colorDark: "#000000",
           colorLight: "#ffffff",
-
-          // H는 용량이 작아져서 overflow가 잘 발생함
-          // M으로 변경하여 안정성 확보
           correctLevel: QRCode.CorrectLevel.M
         });
       } catch (error) {
@@ -435,7 +483,26 @@
       }
     }
 
-    function addEquipment() {
+    async function loadEquipments() {
+      setStatus("Supabase에서 장비 목록을 불러오는 중...");
+
+      const { data, error } = await supabaseClient
+        .from("equipments")
+        .select("*")
+        .order("id", { ascending: false });
+
+      if (error) {
+        console.error("조회 오류:", error);
+        setStatus("조회 실패: " + error.message);
+        return;
+      }
+
+      equipmentList = data || [];
+      renderTable();
+      setStatus("총 " + equipmentList.length + "건 조회 완료");
+    }
+
+    async function addEquipment() {
       const equipmentNo = equipmentNoInput.value.trim();
       const equipmentName = equipmentNameInput.value.trim();
       const memo = memoInput.value.trim();
@@ -457,19 +524,30 @@
         return;
       }
 
-      const newItem = {
-        id: Date.now(),
-        equipmentNo,
-        equipmentName,
-        memo,
-        lifeYear,
-        inputDate
+      const insertData = {
+        equipment_no: equipmentNo,
+        equipment_name: equipmentName,
+        memo: memo,
+        life_year: Number(lifeYear),
+        input_date: inputDate
       };
 
-      equipmentList.push(newItem);
-      saveData();
-      renderTable();
+      setStatus("Supabase에 저장 중...");
+
+      const { error } = await supabaseClient
+        .from("equipments")
+        .insert(insertData);
+
+      if (error) {
+        console.error("등록 오류:", error);
+        alert("등록 실패: " + error.message);
+        setStatus("등록 실패");
+        return;
+      }
+
       clearForm();
+      await loadEquipments();
+      setStatus("장비 정보가 등록되었습니다.");
     }
 
     function clearForm() {
@@ -481,20 +559,25 @@
       equipmentNoInput.focus();
     }
 
-    function deleteEquipment(id) {
+    async function deleteEquipment(id) {
       if (!confirm("이 장비 정보를 삭제할까요?")) return;
 
-      equipmentList = equipmentList.filter(item => item.id !== id);
-      saveData();
-      renderTable();
-    }
+      setStatus("삭제 중...");
 
-    function clearAll() {
-      if (!confirm("전체 장비 목록을 삭제할까요?")) return;
+      const { error } = await supabaseClient
+        .from("equipments")
+        .delete()
+        .eq("id", id);
 
-      equipmentList = [];
-      saveData();
-      renderTable();
+      if (error) {
+        console.error("삭제 오류:", error);
+        alert("삭제 실패: " + error.message);
+        setStatus("삭제 실패");
+        return;
+      }
+
+      await loadEquipments();
+      setStatus("장비 정보가 삭제되었습니다.");
     }
 
     function renderTable() {
@@ -503,7 +586,7 @@
       if (equipmentList.length === 0) {
         equipmentTable.innerHTML = `
           <tr>
-            <td colspan="8" class="empty">등록된 장비가 없습니다.</td>
+            <td colspan="9" class="empty">등록된 장비가 없습니다.</td>
           </tr>
         `;
         return;
@@ -513,15 +596,16 @@
         const tr = document.createElement("tr");
 
         tr.innerHTML = `
-          <td>${index + 1}</td>
+          <td>${equipmentList.length - index}</td>
           <td>
             <div id="qr-${item.id}" class="qr-thumb" onclick="openModal(${item.id})"></div>
           </td>
-          <td>${escapeHtml(item.equipmentNo)}</td>
-          <td>${escapeHtml(item.equipmentName)}</td>
+          <td>${escapeHtml(item.equipment_no)}</td>
+          <td>${escapeHtml(item.equipment_name)}</td>
           <td class="memo">${escapeHtml(item.memo || "-")}</td>
-          <td>${escapeHtml(item.lifeYear)}년</td>
-          <td>${escapeHtml(item.inputDate)}</td>
+          <td>${escapeHtml(item.life_year)}년</td>
+          <td>${escapeHtml(item.input_date)}</td>
+          <td>${escapeHtml(formatDateTime(item.created_at))}</td>
           <td>
             <button class="btn-danger" onclick="deleteEquipment(${item.id})">삭제</button>
           </td>
@@ -538,6 +622,7 @@
 
     function openModal(id) {
       const item = equipmentList.find(e => e.id === id);
+
       if (!item) return;
 
       const modal = document.getElementById("qrModal");
@@ -550,11 +635,12 @@
       createQRCode(largeQr, qrText, 280);
 
       qrInfo.innerHTML = `
-        <strong>장비번호:</strong> ${escapeHtml(item.equipmentNo)}<br>
-        <strong>장비명:</strong> ${escapeHtml(item.equipmentName)}<br>
+        <strong>장비번호:</strong> ${escapeHtml(item.equipment_no)}<br>
+        <strong>장비명:</strong> ${escapeHtml(item.equipment_name)}<br>
         <strong>간단한 메모:</strong> ${escapeHtml(item.memo || "-")}<br>
-        <strong>내용년수:</strong> ${escapeHtml(item.lifeYear)}년<br>
-        <strong>입력일자:</strong> ${escapeHtml(item.inputDate)}
+        <strong>내용년수:</strong> ${escapeHtml(item.life_year)}년<br>
+        <strong>입력일자:</strong> ${escapeHtml(item.input_date)}<br>
+        <strong>등록일시:</strong> ${escapeHtml(formatDateTime(item.created_at))}
       `;
 
       qrRaw.innerHTML = `
@@ -571,12 +657,53 @@
 
     window.onclick = function(event) {
       const modal = document.getElementById("qrModal");
+
       if (event.target === modal) {
         closeModal();
       }
     };
 
-    renderTable();
+    async function init() {
+      if (
+        SUPABASE_URL.includes("여기에") ||
+        SUPABASE_ANON_KEY.includes("여기에")
+      ) {
+        setStatus("Supabase URL과 ANON KEY를 먼저 입력하세요.");
+
+        equipmentTable.innerHTML = `
+          <tr>
+            <td colspan="9" class="empty">
+              코드 안의 SUPABASE_URL, SUPABASE_ANON_KEY 값을 입력해야 합니다.
+            </td>
+          </tr>
+        `;
+
+        return;
+      }
+
+      await loadEquipments();
+
+      /*
+        여러 PC에서 동시에 사용할 경우,
+        Supabase Realtime이 켜져 있으면 자동 갱신됩니다.
+      */
+      supabaseClient
+        .channel("equipments-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "equipments"
+          },
+          function() {
+            loadEquipments();
+          }
+        )
+        .subscribe();
+    }
+
+    init();
   </script>
 </body>
 </html>
