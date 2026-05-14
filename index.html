@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>소방 장비 이력 관리 QR 생성기</title>
+
+  <!-- QR 코드 생성 라이브러리 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Noto Sans KR", Arial, sans-serif;
+      background: #f4f6f8;
+      color: #222;
+    }
+
+    header {
+      background: #d32f2f;
+      color: white;
+      padding: 24px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      opacity: 0.9;
+    }
+
+    .container {
+      max-width: 1150px;
+      margin: 28px auto;
+      padding: 0 18px;
+    }
+
+    .input-card {
+      background: white;
+      padding: 24px;
+      border-radius: 18px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+      margin-bottom: 26px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+    }
+
+    label {
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: block;
+      font-size: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      font-size: 15px;
+    }
+
+    .notice {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #fff4f4;
+      color: #b71c1c;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .button-area {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 13px 20px;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+    }
+
+    .btn-main {
+      background: #d32f2f;
+      color: white;
+    }
+
+    .btn-sub {
+      background: #333;
+      color: white;
+    }
+
+    .btn-danger {
+      background: #777;
+      color: white;
+    }
+
+    .table-card {
+      background: white;
+      padding: 20px;
+      border-radius: 18px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+      overflow-x: auto;
+    }
+
+    .table-title {
+      margin: 0 0 16px;
+      font-size: 22px;
+      color: #d32f2f;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 950px;
+    }
+
+    th {
+      background: #f1f1f1;
+      padding: 12px;
+      border-bottom: 2px solid #ddd;
+      font-size: 14px;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      text-align: center;
+      font-size: 14px;
+      vertical-align: middle;
+    }
+
+    .memo {
+      text-align: left;
+      max-width: 260px;
+      word-break: keep-all;
+    }
+
+    .qr-thumb {
+      width: 76px;
+      min-height: 76px;
+      margin: auto;
+      cursor: pointer;
+      padding: 4px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .qr-thumb:hover {
+      outline: 3px solid #d32f2f;
+    }
+
+    .qr-error {
+      color: #d32f2f;
+      font-size: 11px;
+      line-height: 1.4;
+      font-weight: bold;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 35px;
+      color: #777;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.65);
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 28px;
+      border-radius: 20px;
+      width: 90%;
+      max-width: 460px;
+      text-align: center;
+    }
+
+    .modal-content h2 {
+      margin-top: 0;
+      color: #d32f2f;
+    }
+
+    #largeQr {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+      min-height: 280px;
+      align-items: center;
+    }
+
+    .qr-info {
+      background: #f6f6f6;
+      padding: 14px;
+      border-radius: 12px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.7;
+      word-break: keep-all;
+    }
+
+    .qr-raw {
+      margin-top: 12px;
+      background: #222;
+      color: white;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      word-break: break-all;
+      text-align: left;
+    }
+
+    .close-btn {
+      width: 100%;
+      margin-top: 18px;
+      background: #d32f2f;
+      color: white;
+    }
+
+    @media (max-width: 900px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      header h1 {
+        font-size: 23px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>소방 장비 이력 관리용 QR 생성기</h1>
+    <p>장비 정보를 입력하면 QR코드가 생성되고 하단 테이블에 저장됩니다.</p>
+  </header>
+
+  <div class="container">
+    <section class="input-card">
+      <div class="form-grid">
+        <div>
+          <label for="equipmentNo">장비번호</label>
+          <input id="equipmentNo" type="text" placeholder="예: PUMP-001" />
+        </div>
+
+        <div>
+          <label for="equipmentName">장비명</label>
+          <input id="equipmentName" type="text" placeholder="예: 동력소방펌프" />
+        </div>
+
+        <div>
+          <label for="memo">간단한 메모</label>
+          <input id="memo" type="text" placeholder="예: 1팀 보유 장비" />
+        </div>
+
+        <div>
+          <label for="lifeYear">내용년수</label>
+          <input id="lifeYear" type="number" placeholder="예: 8" min="1" />
+        </div>
+
+        <div>
+          <label for="inputDate">입력일자</label>
+          <input id="inputDate" type="date" />
+        </div>
+      </div>
+
+      <div class="notice">
+        QR코드 용량 초과 오류를 막기 위해 QR 안에는 짧은 형식의 데이터만 저장합니다.<br>
+        예: EQ|PUMP-001|동력소방펌프|8|2026-05-14|1팀 보유 장비
+      </div>
+
+      <div class="button-area">
+        <button class="btn-main" onclick="addEquipment()">QR 생성 및 등록</button>
+        <button class="btn-sub" onclick="clearForm()">입력 초기화</button>
+        <button class="btn-danger" onclick="clearAll()">전체 삭제</button>
+      </div>
+    </section>
+
+    <section class="table-card">
+      <h2 class="table-title">장비 이력 목록</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>순번</th>
+            <th>QR코드</th>
+            <th>장비번호</th>
+            <th>장비명</th>
+            <th>간단한 메모</th>
+            <th>내용년수</th>
+            <th>입력일자</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody id="equipmentTable"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <div id="qrModal" class="modal">
+    <div class="modal-content">
+      <h2>장비 QR 코드</h2>
+
+      <div id="largeQr"></div>
+
+      <div id="qrInfo" class="qr-info"></div>
+
+      <div id="qrRaw" class="qr-raw"></div>
+
+      <button class="close-btn" onclick="closeModal()">닫기</button>
+    </div>
+  </div>
+
+  <script>
+    let equipmentList = JSON.parse(localStorage.getItem("equipmentList")) || [];
+
+    const equipmentNoInput = document.getElementById("equipmentNo");
+    const equipmentNameInput = document.getElementById("equipmentName");
+    const memoInput = document.getElementById("memo");
+    const lifeYearInput = document.getElementById("lifeYear");
+    const inputDateInput = document.getElementById("inputDate");
+    const equipmentTable = document.getElementById("equipmentTable");
+
+    inputDateInput.valueAsDate = new Date();
+
+    function saveData() {
+      localStorage.setItem("equipmentList", JSON.stringify(equipmentList));
+    }
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function shortenText(text, maxLength) {
+      const value = String(text || "").trim();
+      if (value.length > maxLength) {
+        return value.substring(0, maxLength);
+      }
+      return value;
+    }
+
+    function cleanQrText(text) {
+      return String(text || "")
+        .replaceAll("|", "/")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function makeQrText(item) {
+      const equipmentNo = cleanQrText(item.equipmentNo);
+      const equipmentName = cleanQrText(item.equipmentName);
+      const lifeYear = cleanQrText(item.lifeYear);
+      const inputDate = cleanQrText(item.inputDate);
+
+      // QR코드 용량 초과 방지를 위해 메모는 30자까지만 QR 안에 저장
+      const memo = cleanQrText(shortenText(item.memo, 30));
+
+      // 짧은 QR 저장 형식
+      return [
+        "EQ",
+        equipmentNo,
+        equipmentName,
+        lifeYear,
+        inputDate,
+        memo
+      ].join("|");
+    }
+
+    function createQRCode(targetElement, text, size) {
+      targetElement.innerHTML = "";
+
+      try {
+        new QRCode(targetElement, {
+          text: text,
+          width: size,
+          height: size,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+
+          // H는 용량이 작아져서 overflow가 잘 발생함
+          // M으로 변경하여 안정성 확보
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch (error) {
+        console.error("QR 생성 오류:", error);
+
+        targetElement.innerHTML = `
+          <div class="qr-error">
+            QR 생성 실패<br>
+            입력 내용이 너무 깁니다.
+          </div>
+        `;
+      }
+    }
+
+    function addEquipment() {
+      const equipmentNo = equipmentNoInput.value.trim();
+      const equipmentName = equipmentNameInput.value.trim();
+      const memo = memoInput.value.trim();
+      const lifeYear = lifeYearInput.value.trim();
+      const inputDate = inputDateInput.value;
+
+      if (!equipmentNo || !equipmentName || !lifeYear || !inputDate) {
+        alert("장비번호, 장비명, 내용년수, 입력일자는 반드시 입력하세요.");
+        return;
+      }
+
+      if (equipmentNo.length > 40) {
+        alert("장비번호는 40자 이내로 입력하는 것을 권장합니다.");
+        return;
+      }
+
+      if (equipmentName.length > 40) {
+        alert("장비명은 40자 이내로 입력하는 것을 권장합니다.");
+        return;
+      }
+
+      const newItem = {
+        id: Date.now(),
+        equipmentNo,
+        equipmentName,
+        memo,
+        lifeYear,
+        inputDate
+      };
+
+      equipmentList.push(newItem);
+      saveData();
+      renderTable();
+      clearForm();
+    }
+
+    function clearForm() {
+      equipmentNoInput.value = "";
+      equipmentNameInput.value = "";
+      memoInput.value = "";
+      lifeYearInput.value = "";
+      inputDateInput.valueAsDate = new Date();
+      equipmentNoInput.focus();
+    }
+
+    function deleteEquipment(id) {
+      if (!confirm("이 장비 정보를 삭제할까요?")) return;
+
+      equipmentList = equipmentList.filter(item => item.id !== id);
+      saveData();
+      renderTable();
+    }
+
+    function clearAll() {
+      if (!confirm("전체 장비 목록을 삭제할까요?")) return;
+
+      equipmentList = [];
+      saveData();
+      renderTable();
+    }
+
+    function renderTable() {
+      equipmentTable.innerHTML = "";
+
+      if (equipmentList.length === 0) {
+        equipmentTable.innerHTML = `
+          <tr>
+            <td colspan="8" class="empty">등록된 장비가 없습니다.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      equipmentList.forEach((item, index) => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td>
+            <div id="qr-${item.id}" class="qr-thumb" onclick="openModal(${item.id})"></div>
+          </td>
+          <td>${escapeHtml(item.equipmentNo)}</td>
+          <td>${escapeHtml(item.equipmentName)}</td>
+          <td class="memo">${escapeHtml(item.memo || "-")}</td>
+          <td>${escapeHtml(item.lifeYear)}년</td>
+          <td>${escapeHtml(item.inputDate)}</td>
+          <td>
+            <button class="btn-danger" onclick="deleteEquipment(${item.id})">삭제</button>
+          </td>
+        `;
+
+        equipmentTable.appendChild(tr);
+
+        const qrTarget = document.getElementById(`qr-${item.id}`);
+        const qrText = makeQrText(item);
+
+        createQRCode(qrTarget, qrText, 64);
+      });
+    }
+
+    function openModal(id) {
+      const item = equipmentList.find(e => e.id === id);
+      if (!item) return;
+
+      const modal = document.getElementById("qrModal");
+      const largeQr = document.getElementById("largeQr");
+      const qrInfo = document.getElementById("qrInfo");
+      const qrRaw = document.getElementById("qrRaw");
+
+      const qrText = makeQrText(item);
+
+      createQRCode(largeQr, qrText, 280);
+
+      qrInfo.innerHTML = `
+        <strong>장비번호:</strong> ${escapeHtml(item.equipmentNo)}<br>
+        <strong>장비명:</strong> ${escapeHtml(item.equipmentName)}<br>
+        <strong>간단한 메모:</strong> ${escapeHtml(item.memo || "-")}<br>
+        <strong>내용년수:</strong> ${escapeHtml(item.lifeYear)}년<br>
+        <strong>입력일자:</strong> ${escapeHtml(item.inputDate)}
+      `;
+
+      qrRaw.innerHTML = `
+        <strong>QR 저장 내용</strong><br>
+        ${escapeHtml(qrText)}
+      `;
+
+      modal.style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("qrModal").style.display = "none";
+    }
+
+    window.onclick = function(event) {
+      const modal = document.getElementById("qrModal");
+      if (event.target === modal) {
+        closeModal();
+      }
+    };
+
+    renderTable();
+  </script>
+</body>
+</html>
